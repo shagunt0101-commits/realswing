@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: realswing-orchestrator
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn orchestrator:app --host 0.0.0.0 --port 10000
+    healthCheckPath: /health
+    envVars:
+      - key: NINE_ROUTER_BASE
+        value: https://9router.onrender.com/v1
+      - key: DRY_RUN
+        value: "true"
+
+  - type: web
+    name: realswing-nubra-proxy
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn nubra_backend:app --host 0.0.0.0 --port 10000
+    healthCheckPath: /health
+    envVars:
+      - key: NUBRA_ENV
+        value: UAT
+
+  - type: static
+    name: realswing-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

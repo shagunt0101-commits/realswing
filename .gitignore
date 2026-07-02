@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Env
+.env
+session_token.txt
+
+# Env
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

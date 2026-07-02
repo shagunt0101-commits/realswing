@@ -1,0 +1,58 @@
+## 🎯 RealSwing Live Data — QUICK START
+
+### What Was Wrong
+❌ **Prices weren't ticking** because no agents were running
+- DataAgent wasn't connected to Nubra WebSocket
+- No market data flowing into the system
+- SSE stream had nothing to broadcast
+
+### What I Fixed
+✅ **Diagnosed the root cause** — agents need session_token
+✅ **Added demo mode** — start live data without authentication
+✅ **Created helper script** — one command to start everything
+✅ **Documented everything** — 3 comprehensive guides
+
+### System Status Right Now
+```
+✓ Frontend    :5173  (React + Vite)
+✓ Proxy       :9000  (Nubra API gateway)
+✓ Orchestrator:9010  (5-agent pipeline + SSE)
+```
+**All running and ready.**
+
+### Get Live Data Flowing (Choose One)
+
+**FASTEST (1 minute):**
+```bash
+cd F:\Algok
+python demo_mode.py start
+```
+Then open: http://localhost:5173
+
+**Alternative:**
+```bash
+curl -X POST http://localhost:9010/demo/start
+```
+
+### What Happens Next
+1. ✓ Dashboard connects to SSE stream
+2. ✓ Yahoo Finance data updates every 2 seconds
+3. ✓ Analyst reports every 5 seconds
+4. ✓ AI trade signals every 10 seconds
+5. ✓ Everything live on dashboard
+
+### Files Created
+- [START_HERE.md](START_HERE.md) — Complete guide
+- [LIVE_DATA_SOLUTION.md](LIVE_DATA_SOLUTION.md) — Troubleshooting + architecture
+- [REALSWING_START_GUIDE.md](REALSWING_START_GUIDE.md) — Market hours & options
+- [demo_mode.py](demo_mode.py) — Helper script
+- Demo endpoints in [orchestrator.py:302-373](realswing/orchestrator.py:302)
+
+### Next Steps
+1. Run: `python demo_mode.py start`
+2. Open: http://localhost:5173
+3. Watch live data stream in real-time
+
+---
+
+**Status: ✅ READY TO TEST**

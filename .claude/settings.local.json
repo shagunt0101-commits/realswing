@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python nubra_backend.py)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/docs)",
+      "Bash(taskkill //f //im python.exe)",
+      "Bash(python -c \"from nubra_backend import app; print\\('import OK'\\)\")",
+      "Bash(curl -s \"http://localhost:8000/market/optionchain/NIFTY?exchange=NSE&session_token=test\")",
+      "Bash(curl -s \"http://localhost:8000/market/optionchain/NIFTY?exchange=NSE&session_token=eyJhbGciOiJSUzI1NiIsImtpZCI6Im51YnJhIiwidHlwIjoiSldUIn0.eyJjbGllbnRDb2RlIjoiSTAwSFRLIiwiZGV2aWNlSWQiOiJUUzEyMyIsImRldmljZU9yaWdpbiI6Ik4vQSIsImVudiI6IlBST0RfTEFURVNUIiwiZXhwIjoxNzgyNjA2NjAwLCJpc3MiOiJodHRwczovL251YnJhLmlvIiwibG9naW5fbW9kZSI6InVzZXIiLCJzZXNzaW9uSWQiOiJlMDExMDQzZC0xOWNjLTQwOTYtOTY5Ni02MTk3MzQxNzlmZWMiLCJzdWIiOiJuazE5OTZpbm5AZ21haWwuY29tIiwidXNlcklkIjoyMzA5NiwidXNlclR5cGUiOiJjbGllbnQifQ.kBJEFgSBixogW6nuXy5IK8jDLHtWy_-OWnrHFRf1uYYY8-Xj6BJqvrrQU5x4l8YC5X8vsBnptET3aXVtYM7gdkf5Zivqln6KsNTYApsm_FBGrc2KlK_ZaMwanLcgIWvlg2zDPW15jUJ0GCKBVQNxbMdbOtnjsnD2rERkOmlHc6AR7r3vSyyYZpNiNyqtVADQdWCePuW0VK_Z7L4PK8I2weOX3YSSKes0GutO1OG7cODKkIFXtnZ5qBudpdr_AZggYja9xOEKadshLjyQCdu15Peue1lLNDuCQ46CFDn_ekiiRLm0BI_djMKBda7w7nqwROh4riplrA6lARScjK-Jmw&device_id=TS123&env=PROD\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); c=d.get\\('chain',{}\\); e=c.get\\('all_expiries',[]\\); print\\('expiries:', e[:5] if e else 'NONE', 'current:', c.get\\('expiry'\\)\\)\")",
+      "Bash(taskkill //f //im node.exe)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8000/market/instruments)",
+      "Bash(curl -s \"http://localhost:9000/api/analysis/momentum?ce=%5B%7B%22sp%22%3A2420000%2C%22oi%22%3A100000%2C%22prev_oi%22%3A80000%2C%22volume%22%3A5000%2C%22iv%22%3A14%2C%22delta%22%3A0.5%2C%22ltp%22%3A10000%7D%5D&pe=%5B%7B%22sp%22%3A2420000%2C%22oi%22%3A120000%2C%22prev_oi%22%3A100000%2C%22volume%22%3A6000%2C%22iv%22%3A15%2C%22delta%22%3A-0.5%2C%22ltp%22%3A8000%7D%5D\")",
+      "Bash(curl -s -o /dev/null -w \"Backend :9000 = %{http_code}\\\\n\" http://localhost:9000/health)",
+      "Bash(python orchestrator.py)",
+      "Bash(curl -s -o /dev/null -w \"Orchestrator :9001 = %{http_code}\\\\n\" http://localhost:9001/health)",
+      "Bash(curl -s http://localhost:9001/health)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -o /dev/null -w \"Frontend :5173 = %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(curl -s \"http://localhost:9000/health\")",
+      "Bash(curl -s \"http://localhost:9000/api/analysis/market-snapshot?ce=%5B%5D&pe=%5B%5D\")",
+      "Bash(curl -s \"http://localhost:9000/api/analysis/momentum?ce=%5B%5D&pe=%5B%5D\")",
+      "Bash(curl -s -o /dev/null -w \"Orchestrator :9010 = %{http_code}\\\\n\" http://localhost:9010/health)",
+      "Bash(curl -s http://localhost:9010/health)",
+      "Bash(curl -s http://localhost:9010/state)",
+      "Bash(netstat -ano)",
+      "Bash(./venv/Scripts/python.exe orchestrator.py)",
+      "Bash(curl -s -X POST http://localhost:9010/demo/start)",
+      "Bash(curl -s http://localhost:9010/analyst)",
+      "Bash(python -m json.tool)",
+      "Bash(python -m py_compile /f/Algok/realswing/orchestrator.py)",
+      "Bash(tail -100 /tmp/orchestrator.log)",
+      "Bash(rm -rf /f/Algok/realswing/__pycache__ /f/Algok/realswing/agents/__pycache__ /f/Algok/realswing/*.pyc 2>/dev/null || true *)",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(npx -p @anthropic-ai/claude-code claude --version)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); console.log\\(JSON.stringify\\(fs.readFileSync\\('F:/Algok/frontend/src/components/ResearchDesk.jsx','utf8'\\).split\\('\\\\n'\\).slice\\(183,186\\)\\)\\)\")",
+      "Bash(./venv/Scripts/python.exe -c ' *)",
+      "Bash(npx eslint *)"
+    ]
+  }
+}
