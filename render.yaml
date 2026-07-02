@@ -21,7 +21,7 @@ services:
       - key: NUBRA_ENV
         value: UAT
 
-  - type: static
+  - type: web
     name: realswing-frontend
     env: static
     buildCommand: cd frontend && npm install && npm run build
