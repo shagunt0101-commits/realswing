@@ -272,7 +272,7 @@ async def broadcast_loop():
                             "expected_move": em,
                             "strikes": momentum["strikes"][:10],
                         })
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
 
 
 # ── FASTAPI APP ───────────────────────────────────────────────────────────────
@@ -345,10 +345,10 @@ async def demo_start():
                         registry.data_agent.state.last_update = datetime.now()
                         registry.data_agent.state.connected = True
 
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)
             except Exception as e:
                 logger.error(f"[Demo] Error fetching Yahoo data: {e}")
-                await asyncio.sleep(5)
+                await asyncio.sleep(2)
 
     registry.analyst_agent = AnalystAgent(state=registry.data_agent.state, interval_sec=5)
     registry.signal_agent = SignalAgent(analyst=registry.analyst_agent, interval_sec=10)

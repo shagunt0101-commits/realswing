@@ -39,7 +39,12 @@
       "Bash(./venv/Scripts/python.exe -c ' *)",
       "Bash(npx eslint *)",
       "Bash(./venv/Scripts/python.exe nubra_backend.py)",
-      "Bash(curl -s http://localhost:9000/health)"
+      "Bash(curl -s http://localhost:9000/health)",
+      "Bash(curl -s http://localhost:9010/algo/status)",
+      "Bash(curl -s -X POST http://localhost:9000/market/timeseries -H 'Content-Type: application/json' -d '{\"exchange\":\"NSE\",\"instrument\":\"NIFTY\",\"interval\":\"5m\",\"session_token\":\"\",\"env\":\"UAT\"}')",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

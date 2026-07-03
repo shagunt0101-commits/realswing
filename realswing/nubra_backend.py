@@ -486,17 +486,16 @@ class HistoryRequest(BaseModel):
 
 @app.post("/market/timeseries")
 async def market_timeseries(body: HistoryRequest):
-    """Proxy for Nubra POST /charts/timeseries — historical candle data."""
+    """Proxy for Nubra POST /charts/timeseries — historical candle data.
+    Falls back to Yahoo Finance if Nubra fails (no auth, rate limited, etc.)."""
     b = base(body.env)
-    headers = {"x-device-id": "TS123", "Content-Type": "text/plain"}
+    headers = {"x-device-id": "TS123", "Content-Type": "application/json"}
     if body.session_token:
         headers["Authorization"] = f"Bearer {body.session_token}"
 
-    # Ensure proper ISO date format for Nubra
+    import re
     sd = body.start_date
     ed = body.end_date
-    # FastAPI may strip the .000Z — restore it
-    import re
     if sd:
         sd = sd[:23] if len(sd) > 23 else sd
         if not sd.endswith('Z'): sd += '.000Z'
@@ -516,55 +515,41 @@ async def market_timeseries(body: HistoryRequest):
             "type": "INDEX" if body.instrument in ["NIFTY","BANKNIFTY","SENSEX","FINNIFTY"] else "STOCK",
             "values": [body.instrument],
             "fields": ["open","high","low","close","tick_volume","cumulative_volume"],
-            "startDate": sd,
-            "endDate": ed,
-            "interval": body.interval,
-            "intraDay": True,
-            "realTime": False,
+            "startDate": sd, "endDate": ed, "interval": body.interval,
+            "intraDay": True, "realTime": False,
         }]
     }
 
-    import json
-    body_str = json.dumps(payload)
-    print(f"[timeseries] POST {b}/charts/timeseries env={body.env}", flush=True)
-    print(f"[timeseries] headers={ {k:v[:30] for k,v in headers.items()} }", flush=True)
-    print(f"[timeseries] body={body_str[:300]}", flush=True)
     c = http()
-    r = await c.post(
-        f"{b}/charts/timeseries",
-        headers=headers,
-        content=body_str,
-    )
-    resp_text = r.text[:2000]
-    print(f"[timeseries] Nubra status={r.status_code} resp={resp_text}", flush=True)
-    if r.status_code != 200:
+    r = await c.post(f"{b}/v3/charts/timeseries", headers=headers, json=payload)
+
+    if r.status_code == 200 and r.text.strip():
+        data = r.json()
+        candles = []
         try:
-            err_detail = r.json()
-        except Exception:
-            err_detail = resp_text
-        raise HTTPException(status_code=r.status_code, detail=err_detail)
-    data = r.json()
+            values = data.get("result", [{}])[0].get("values", [{}])[0]
+            symbol = list(values.keys())[0]
+            fields = values[symbol]
+            opens = fields.get("open", [])
+            for i, o in enumerate(opens):
+                candles.append({
+                    "time": o["ts"] // 1000000000 if o["ts"] > 1e12 else o["ts"],
+                    "open": o["v"] / 100,
+                    "high": fields.get("high", [{}] * len(opens))[i].get("v", o["v"]) / 100,
+                    "low": fields.get("low", [{}] * len(opens))[i].get("v", o["v"]) / 100,
+                    "close": fields.get("close", [{}] * len(opens))[i].get("v", o["v"]) / 100,
+                    "volume": fields.get("tick_volume", [{}] * len(opens))[i].get("v", 0),
+                })
+        except (KeyError, IndexError, TypeError):
+            pass
+        return {"candles": candles, "symbol": body.instrument}
 
-    # Transform to flat candle array for frontend
-    candles = []
-    try:
-        values = data.get("result", [{}])[0].get("values", [{}])[0]
-        symbol = list(values.keys())[0]
-        fields = values[symbol]
-        opens = fields.get("open", [])
-        for i, o in enumerate(opens):
-            candles.append({
-                "time": o["ts"] // 1000000000 if o["ts"] > 1e12 else o["ts"],
-                "open": o["v"],
-                "high": fields.get("high", [{}] * len(opens))[i].get("v", o["v"]),
-                "low": fields.get("low", [{}] * len(opens))[i].get("v", o["v"]),
-                "close": fields.get("close", [{}] * len(opens))[i].get("v", o["v"]),
-                "volume": fields.get("tick_volume", [{}] * len(opens))[i].get("v", 0),
-            })
-    except (KeyError, IndexError, TypeError):
-        pass
-
-    return {"candles": candles, "symbol": body.instrument}
+    # Fallback: Yahoo Finance (no auth needed)
+    print(f"[timeseries] Nubra returned {r.status_code}, falling back to Yahoo Finance", flush=True)
+    yahoo_candles = await _fetch_yahoo_fallback(body.instrument, body.interval, 200)
+    if yahoo_candles:
+        return {"candles": yahoo_candles, "symbol": body.instrument, "source": "yahoo"}
+    raise HTTPException(400, f"Nubra: {r.text[:200]}, Yahoo: no data")
 
 
 class MomentumRequest(BaseModel):
@@ -629,6 +614,57 @@ TRADE_IDEA: [1 sentence actionable idea]"""
         return {"analysis": content.strip()}
     except Exception as e:
         return {"analysis": f"AI unavailable: {type(e).__name__}"}
+
+
+# ── YAHOO FINANCE FALLBACK ───────────────────────────────────────────────
+
+YAHOO_SYMBOLS = {
+    "NIFTY": "%5ENSEI", "BANKNIFTY": "%5ENSEBANK",
+    "SENSEX": "%5EBSESN", "FINNIFTY": "%5ECNXMID",
+    "RELIANCE": "RELIANCE.NS", "TCS": "TCS.NS",
+    "HDFCBANK": "HDFCBANK.NS", "INFY": "INFY.NS",
+}
+YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
+YAHOO_UA   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+TF_YAHOO = {"1m":"1m","3m":"2m","5m":"5m","15m":"15m","30m":"30m","1h":"1h","4h":"1h","1d":"1d"}
+YAHOO_RANGE = {"5m":"5d","15m":"5d","30m":"5d","1h":"5d","1d":"5d"}
+
+def _fetch_yahoo_sync(instrument: str, timeframe: str, limit: int = 200) -> list:
+    """Sync fetch OHLCV from Yahoo Finance."""
+    import urllib.request, json, ssl
+    sym = YAHOO_SYMBOLS.get(instrument.upper())
+    if not sym:
+        return []
+    yahoo_tf = TF_YAHOO.get(timeframe, "5m")
+    yahoo_range = YAHOO_RANGE.get(timeframe, "5d")
+    url = f"{YAHOO_BASE}/{sym}?interval={yahoo_tf}&range={yahoo_range}&includePrePost=False"
+    req = urllib.request.Request(url, headers={"User-Agent": YAHOO_UA})
+    ctx = ssl.create_default_context()
+    try:
+        resp = urllib.request.urlopen(req, context=ctx, timeout=10)
+        data = json.loads(resp.read())
+        result = data["chart"]["result"][0]
+        ts = result.get("timestamp", [])
+        if not ts:
+            return []
+        quotes = result["indicators"]["quote"][0]
+        bars = []
+        for t, o, h, l, c, v in zip(ts, quotes["open"], quotes["high"],
+                                     quotes["low"], quotes["close"], quotes["volume"]):
+            if c is not None:
+                bars.append({
+                    "time": t, "open": round(o, 2), "high": round(h, 2),
+                    "low": round(l, 2), "close": round(c, 2), "volume": v or 0,
+                })
+        return bars[-limit:]
+    except Exception as e:
+        print(f"[yahoo] Failed for {instrument}: {e}", flush=True)
+        return []
+
+async def _fetch_yahoo_fallback(instrument: str, timeframe: str, limit: int = 200) -> list:
+    """Fetch OHLCV from Yahoo Finance (no auth needed)."""
+    import asyncio
+    return await asyncio.to_thread(_fetch_yahoo_sync, instrument, timeframe, limit)
 
 
 if __name__ == "__main__":

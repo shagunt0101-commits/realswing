@@ -64,7 +64,7 @@ function startPolling(getSession) {
     usePrices.getState().setPrices(results);
   };
   fetchAll();
-  pollInterval = setInterval(fetchAll, 5000);
+  pollInterval = setInterval(fetchAll, 1000);
 }
 
 function stopPolling() {

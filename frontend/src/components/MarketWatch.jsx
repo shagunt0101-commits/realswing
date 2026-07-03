@@ -205,7 +205,7 @@ export default function MarketWatch({ session, watchList: externalWatchList, onA
 
   useEffect(() => {
     fetchAll();
-    const id = setInterval(fetchAll, 5000);
+    const id = setInterval(fetchAll, 1000);
     return () => clearInterval(id);
   }, [fetchAll]);
 

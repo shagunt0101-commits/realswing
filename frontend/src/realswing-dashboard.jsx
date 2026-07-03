@@ -2172,11 +2172,12 @@ function Dashboard({ session, onLogout }) {
         return () => clearInterval(id);
     }, []);
 
-    // Auto-load chain on mount AND when session/instrument changes
+    // Auto-load chain on mount, instrument change, AND poll every 2s for live updates
     const loadedChainRef = useRef(null);
+    const fetchChainRef = useRef(null);
     useEffect(() => {
         if (!session?.session_token) return;
-        (async () => {
+        const fetchChain = async () => {
             try {
                 const exch = ["SENSEX", "BANKEX"].includes(activeInstrument) ? "BSE" : "NSE";
                 const d = await api(
@@ -2186,11 +2187,14 @@ function Dashboard({ session, onLogout }) {
                     const key = `${activeInstrument}_${d.chain.expiry || ''}`;
                     if (loadedChainRef.current !== key) {
                         loadedChainRef.current = key;
-                        setChainData({ chain: d.chain, instrument: activeInstrument });
                     }
+                    setChainData({ chain: d.chain, instrument: activeInstrument });
                 }
             } catch { }
-        })();
+        };
+        fetchChain();
+        fetchChainRef.current = setInterval(fetchChain, 2000);
+        return () => { if (fetchChainRef.current) clearInterval(fetchChainRef.current); };
     }, [session?.session_token, activeInstrument]);
 
     return (
