@@ -7,7 +7,8 @@ import { useRef, useEffect } from "react";
  * When last subscriber leaves, polling stops (via ref counting).
  */
 
-const API_BASE = "http://localhost:9000";
+const DEV = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const API_BASE = import.meta.env.VITE_API_BASE || (DEV ? "http://localhost:9000" : "");
 const DEVICE_ID = "TS123";
 
 let activeSubscribers = 0;

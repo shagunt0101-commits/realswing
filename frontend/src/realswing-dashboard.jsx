@@ -62,8 +62,10 @@ import { usePaperTradeStore } from './stores/paperTradeStore';
 import SignalEngine from "./components/SignalEngine";
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const API_BASE = "http://localhost:9000";  // ← change to your deployed backend URL
-const ORCH_BASE = "http://localhost:9010"; // Agent orchestrator (SSE, start/stop)
+// Auto-detect backend URL: Vite proxy in dev, or deployed URL from env
+const DEV = import.meta.env.DEV;
+const API_BASE = import.meta.env.VITE_API_BASE || (DEV ? "http://localhost:9000" : "");
+const ORCH_BASE = import.meta.env.VITE_ORCH_BASE || (DEV ? "http://localhost:9010" : "");
 const DEVICE_ID = "TS123";
 
 // ── DESIGN TOKENS ─────────────────────────────────────────────────────────────

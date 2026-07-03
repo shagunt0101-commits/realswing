@@ -9,7 +9,8 @@ import AIPanel from './AIPanel.jsx';
 import InstitutionalMetrics from './InstitutionalMetrics.jsx';
 
 const C = { bg: '#080E1C', panel: '#0D1729', border: '#1A2E52', accent: '#00D4FF', green: '#00E676', dim: '#4A6080', bright: '#E8F0FF' };
-const API_BASE = 'http://localhost:9000';
+const DEV = window.location.hostname === 'localhost';
+const API_BASE = import.meta.env?.VITE_API_BASE || (DEV ? 'http://localhost:9000' : '');
 const DEVICE_ID = 'TS123';
 
 export default function OrderFlowWorkstation({ session }) {

@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
+const DEV = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const API = import.meta.env?.VITE_API_BASE || (DEV ? 'http://localhost:9000' : '');
+
 const C = {
   bg: "#080E1C", panel: "#0D1729", border: "#1A2E52",
   accent: "#00D4FF", green: "#00E676", red: "#FF3B5C",
@@ -150,7 +153,7 @@ export default function MarketWatch({ session, watchList: externalWatchList, onA
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch('http://localhost:9000/market/instruments');
+        const r = await fetch(`${API}/market/instruments`);
         setInstruments(await r.json());
       } catch {}
     })();
@@ -162,7 +165,7 @@ export default function MarketWatch({ session, watchList: externalWatchList, onA
       try {
         const exch = ['SENSEX', 'BANKEX'].includes(selectedFoSymbol) ? 'BSE' : 'NSE';
         const r = await fetch(
-          `http://localhost:9000/market/expiries/${selectedFoSymbol}?exchange=${exch}&session_token=${session.session_token}&device_id=TS123&env=${session.env}`
+          `${API}/market/expiries/${selectedFoSymbol}?exchange=${exch}&session_token=${session.session_token}&device_id=TS123&env=${session.env}`
         );
         const d = await r.json();
         setExpiries(d.expiries || []);
@@ -177,7 +180,7 @@ export default function MarketWatch({ session, watchList: externalWatchList, onA
       try {
         const exch = ['SENSEX', 'BANKEX'].includes(selectedFoSymbol) ? 'BSE' : 'NSE';
         const r = await fetch(
-          `http://localhost:9000/market/optionchain/${selectedFoSymbol}?expiry=${selectedExpiry}&exchange=${exch}&session_token=${session.session_token}&device_id=TS123&env=${session.env}`
+          `${API}/market/optionchain/${selectedFoSymbol}?expiry=${selectedExpiry}&exchange=${exch}&session_token=${session.session_token}&device_id=TS123&env=${session.env}`
         );
         const d = await r.json();
         if (d.chain) setFoChain(d.chain);
@@ -192,7 +195,7 @@ export default function MarketWatch({ session, watchList: externalWatchList, onA
     await Promise.all(displayList.map(async ({ symbol, exchange }) => {
       try {
         const url =
-          `http://localhost:9000/market/price/${symbol}?exchange=${exchange}&session_token=${session.session_token}&device_id=TS123&env=${session.env}`;
+          `${API}/market/price/${symbol}?exchange=${exchange}&session_token=${session.session_token}&device_id=TS123&env=${session.env}`;
         results[symbol] = await fetch(url).then(r => r.json());
       } catch { results[symbol] = null; }
     }));
