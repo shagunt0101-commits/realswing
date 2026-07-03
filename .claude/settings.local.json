@@ -37,7 +37,9 @@
       "Bash(node -e ' *)",
       "Bash(node -e \"const fs=require\\('fs'\\); console.log\\(JSON.stringify\\(fs.readFileSync\\('F:/Algok/frontend/src/components/ResearchDesk.jsx','utf8'\\).split\\('\\\\n'\\).slice\\(183,186\\)\\)\\)\")",
       "Bash(./venv/Scripts/python.exe -c ' *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(./venv/Scripts/python.exe nubra_backend.py)",
+      "Bash(curl -s http://localhost:9000/health)"
     ]
   }
 }
