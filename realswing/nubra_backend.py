@@ -559,6 +559,8 @@ class MomentumRequest(BaseModel):
     instrument: str
     spot: float = 0
     atm: float = 0
+    prev_close: float = 0
+    expiry: str = ""
     ce: list = []
     pe: list = []
     query: str = ""
@@ -572,32 +574,70 @@ async def ai_momentum_analysis(req: MomentumRequest):
         return {"analysis": "9Router not configured. Set NINE_ROUTER_API_KEY in .env"}
 
     # Build a concise prompt with top strikes
-    ce_sorted = sorted(req.ce, key=lambda x: abs(x.get("strike", 0) - req.atm * 100))[:8]
-    pe_sorted = sorted(req.pe, key=lambda x: abs(x.get("strike", 0) - req.atm * 100))[:8]
+    ce_list = req.ce or []
+    pe_list = req.pe or []
+    if not ce_list and not pe_list:
+        return {"analysis": "No option chain data provided. Load a chain first."}
+    ce_sorted = sorted(ce_list, key=lambda x: abs(float(x.get("strike", x.get("sp", 0))) - req.atm))[:8]
+    pe_sorted = sorted(pe_list, key=lambda x: abs(float(x.get("strike", x.get("sp", 0))) - req.atm))[:8]
 
-    # Build the prompt, optionally including web search context
     web_context = ""
     if req.query:
-        web_context = f"\n\nUSER QUERY / CONTEXT: {req.query}\n\nConsider this information in your analysis and list any key events, dates, and levels mentioned."
+        web_context = f"\n\nUSER QUERY: {req.query}"
 
-    prompt = f"""Analyse this {req.instrument} option chain data for Indian F&O trading. Be direct and specific.{web_context}
+    chg_pct = ((req.spot - req.prev_close) / max(req.prev_close, 1)) * 100 if req.prev_close else 0
 
-Spot: ₹{req.spot}
-ATM: ₹{req.atm}
+    def fmt_strike(s):
+        raw = float(s.get("strike", s.get("sp", 0)))
+        return raw / 100 if raw > 10000 else raw
 
-CE strikes (strike, OI, OI change, IV, delta):
-{chr(10).join(f"{s.get('strike',0)/100:.0f} OI={s.get('oi',0):,} Chg={s.get('oi',0)-(s.get('prev_oi',0) or 0):+} IV={s.get('iv',0)}% Delta={s.get('delta',0)}" for s in ce_sorted)}
+    oi_rows = []
+    for s in ce_sorted:
+        chg = (s.get("oi", 0) or 0) - (s.get("prev_oi", 0) or 0)
+        iv = s.get("iv", 0)
+        oi_rows.append((abs(chg), f"CE {fmt_strike(s):.0f} OI_chg={chg:+} IV={iv}%"))
+    for s in pe_sorted:
+        chg = (s.get("oi", 0) or 0) - (s.get("prev_oi", 0) or 0)
+        iv = s.get("iv", 0)
+        oi_rows.append((abs(chg), f"PE {fmt_strike(s):.0f} OI_chg={chg:+} IV={iv}%"))
+    oi_rows.sort(key=lambda x: -x[0])
+    oi_table = "\n".join(r[1] for r in oi_rows[:5])
 
-PE strikes (strike, OI, OI change, IV, delta):
-{chr(10).join(f"{s.get('strike',0)/100:.0f} OI={s.get('oi',0):,} Chg={s.get('oi',0)-(s.get('prev_oi',0) or 0):+} IV={s.get('iv',0)}% Delta={s.get('delta',0)}" for s in pe_sorted)}
+    expiry_note = ""
+    if req.expiry:
+        from datetime import datetime, timezone
+        try:
+            exp = datetime.strptime(req.expiry, "%Y%m%d").replace(tzinfo=timezone.utc)
+            dte = (exp - datetime.now(timezone.utc)).days
+            if dte <= 1:
+                expiry_note = "\nEXPIRY DAY - check max pain and short covering as competing force."
+        except: pass
 
-Use this format:
-MOMENTUM: BULLISH/BEARISH/SIDEWAYS
-CONFIDENCE: HIGH/MEDIUM/LOW
-KEY_LEVELS: key support and resistance levels
-KEY_EVENTS: upcoming events affecting price
-ANALYSIS: 2-3 sentence explanation
-TRADE_IDEA: one actionable idea"""
+    prompt = f"""Analyse this {req.instrument} option chain snapshot.
+
+Spot: {req.spot/100:.0f} | Prev Close: {req.prev_close/100:.0f} | Change: {chg_pct:+.2f}%
+ATM: {req.atm/100:.0f}{expiry_note}{web_context}
+
+OI changes sorted by magnitude (largest first):
+{oi_table}
+
+Rules (follow strictly):
+1. Compute change % from spot vs prev_close. Classify momentum from OI symmetry + change %.
+2. Key levels: support = nearest strike below spot with highest OI; resistance = nearest above.
+3. Rank OI by change magnitude (already sorted), not absolute OI.
+4. Price-OI correlation: OI up + price up = shorts covering/writing; OI up + price down = fresh buying. Say if you can't determine initiation.
+5. If expiry within 1 day, check short-covering / max-pain as competing force.
+6. Confidence: HIGH if price-OI, IV, OI concentration all agree. MEDIUM if 2 of 3. LOW if conflicting.
+
+Output exactly these sections, in order:
+
+HEADER: {req.spot/100:.0f} | Change {chg_pct:+.2f}% | Momentum | Confidence | S/R range: Support-Resistance
+LEVELS: Support: value | Spot: value | Resistance: value
+OI_TABLE: (strike, type, OI change in contracts, OI_change_rupees, direction read)
+PRIMARY: Instrument + direction | Delta | Reason (tied to OI table) | Risk (what invalidates) | Exit (profit target or time)
+ALTERNATIVE: Opposite case | Shorter format
+CAUTION: Strike to avoid | Blind spot (e.g. "can't confirm buyer vs seller from this data")
+RESPONSIBILITY: Analysis only — decision rests with trader"""
 
     try:
         ai_client = httpx.AsyncClient(timeout=30.0)
@@ -631,7 +671,10 @@ TRADE_IDEA: one actionable idea"""
             content = r.json()["choices"][0]["message"]["content"]
         return {"analysis": content.strip()}
     except Exception as e:
-        return {"analysis": f"AI unavailable: {type(e).__name__}"}
+        import traceback
+        print(f"[AI] Error: {type(e).__name__}: {e}", flush=True)
+        traceback.print_exc()
+        return {"analysis": f"AI unavailable: {type(e).__name__}: {str(e)[:100]}"}
 
 
 # ── YAHOO FINANCE FALLBACK ───────────────────────────────────────────────

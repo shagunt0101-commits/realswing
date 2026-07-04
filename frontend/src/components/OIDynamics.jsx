@@ -12,7 +12,7 @@ function OIDynamics({ data }) {
 
     const fmtK = (v) => v > 0 ? `${(v / 1000).toFixed(0)}K` : '0';
     const fmtStrike = (v) => v ? Math.round(v).toLocaleString('en-IN') : '-';
-    const fmtLtp = (v) => v ? (v / 100).toFixed(2) : '-';
+    const fmtLtp = (v) => v ? v.toFixed(2) : '-';
 
     const handleSort = (key) => {
         if (sortKey === key) {

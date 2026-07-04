@@ -1387,6 +1387,97 @@ function DigitalClock({ format, time }) {
     return <span onClick={format.next} style={{ cursor: "pointer" }} title={`Click: ${format.name}`}>{format.render(h, m, s, a)}</span>;
 }
 
+// ── AI INLINE PANEL (used inside Trade tab right column) ────────────────────
+function AIInlinePanel({ aiData, searchLoading, onSearch }) {
+    const [searchInput, setSearchInput] = useState("");
+    const a = aiData?.analysis;
+    const lines = (a || "").split("\n").filter(Boolean);
+
+    const getVal = (prefix) => {
+        const r = new RegExp(`\\*?\\*?${prefix.replace(/:/g,"")}\\*?\\*?:\\s*(.*)`, "i");
+        for (const l of lines) { const m = l.trim().match(r); if (m) return m[1].trim(); }
+        return null;
+    };
+    const header = getVal("HEADER:");
+    const levels = getVal("LEVELS:");
+    const oiRaw = (() => { const idx = lines.findIndex(l => l.trim().match(/\*?OI_TABLE\*?:/i)); if(idx<0)return []; const rows=[]; for(let i=idx+1;i<lines.length;i++){ const t=lines[i].trim(); if(t.match(/\*?(PRIMARY|ALTERNATIVE|CAUTION|RESPONSIBILITY)\*?:/i))break; if(t&&!t.startsWith("|--")&&!t.startsWith("| Strike"))rows.push(t); } return rows; })();
+    const primary = getVal("PRIMARY:");
+    const alternative = getVal("ALTERNATIVE:");
+    const caution = getVal("CAUTION:");
+    const isBullish = header?.toUpperCase().includes("BULLISH");
+    const isBearish = header?.toUpperCase().includes("BEARISH");
+    const momentumLabel = header?.match(/Momentum\s*\|\s*(\w+)/i)?.[1] || '—';
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ color: C.bright, fontWeight: 600, fontSize: 11, marginBottom: 2 }}>🤖 AI Analysis</div>
+            <div style={{ display: "flex", gap: 4 }}>
+                <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+                    placeholder="Ask AI about options, OI, or market..."
+                    onKeyDown={e => { if (e.key === "Enter" && searchInput.trim()) { onSearch?.(searchInput.trim()); } }}
+                    style={{ flex: 1, background: "#0A1220", border: `1px solid ${C.border}`, borderRadius: 4, color: C.bright, padding: "5px 8px", fontSize: 11, outline: "none" }} />
+                <button onClick={() => { if (searchInput.trim()) { onSearch?.(searchInput.trim()); } }}
+                    disabled={searchLoading || !searchInput.trim()}
+                    style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}50`, borderRadius: 4, color: C.accent, padding: "5px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                    {searchLoading ? "..." : "→"}
+                </button>
+            </div>
+
+            {searchLoading && <div style={{ color: C.dim, fontSize: 10, textAlign: "center", padding: 12 }}>⏳ Analyzing...</div>}
+
+            {!a && !searchLoading && (
+                <div style={{ color: C.dim, fontSize: 10, textAlign: "center", padding: 12 }}>Ask a question above to analyze the option chain</div>
+            )}
+
+            {a && !searchLoading && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
+                    {/* Header badge */}
+                    {header && (
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+                            <span style={{ color: C.bright, fontSize: 10, fontFamily: "monospace", fontWeight: 600 }}>{header.split("|")[0]?.trim()}</span>
+                            <span style={{ padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: 9,
+                                background: isBullish ? `${C.green}22` : isBearish ? `${C.red}22` : `${C.yellow}22`,
+                                border: `1px solid ${isBullish ? C.green+'50' : isBearish ? C.red+'50' : C.yellow+'50'}`,
+                                color: isBullish ? C.green : isBearish ? C.red : C.yellow }}>{isBullish ? "▲" : isBearish ? "▼" : "◆"} {momentumLabel}</span>
+                            {header.match(/High/i) && <span style={{ color: C.green, fontSize: 8, fontWeight: 600 }}>HIGH</span>}
+                        </div>
+                    )}
+                    {/* Levels bar */}
+                    {levels && (
+                        <div style={{ background: "#0A1220", borderRadius: 4, padding: "5px 8px", fontSize: 9, fontFamily: "monospace" }}>
+                            {(() => { const p=levels.split("|").map(x=>x.replace(/^(Support|Spot|Resistance):\s*/i,"").trim()); return <><span style={{color:C.red,fontWeight:700}}>S:{p[0]||'—'}</span><span style={{color:C.dim}}> | </span><span style={{color:C.yellow}}>●{p[1]||'—'}●</span><span style={{color:C.dim}}> | </span><span style={{color:C.green,fontWeight:700}}>R:{p[2]||'—'}</span></>; })()}
+                        </div>
+                    )}
+                    {/* OI Table */}
+                    {oiRaw.length > 0 && (
+                        <div style={{ background: "#0A1220", borderRadius: 4, padding: "5px 8px" }}>
+                            <div style={{ color: C.accent, fontSize: 8, fontWeight: 600, textTransform: "uppercase", marginBottom: 3 }}>OI Movers</div>
+                            {oiRaw.slice(0,5).map((r,i) => {
+                                const p=r.split(/\s+/); const s=p[0]; const st=p[1]; const ci=p.findIndex(x=>x.startsWith("OI_chg="));
+                                const cg=ci>=0?p[ci].replace("OI_chg=",""):""; const rd=p.slice(ci+1).join(" ").replace(/^IV=.*?\s/,"").trim();
+                                const isCe=s==="CE";
+                                return <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:8,padding:"1px 0",borderTop:`1px solid ${C.border}20`}}>
+                                    <span><span style={{color:isCe?C.green:C.red,fontWeight:700}}>{s}</span> <span style={{color:C.text,fontFamily:"monospace"}}>{st}</span></span>
+                                    <span style={{color:cg.startsWith("+")?C.green:C.red,fontWeight:600}}>{cg}</span>
+                                </div>;
+                            })}
+                        </div>
+                    )}
+                    {/* Primary */}
+                    {primary && (
+                        <div style={{ borderRadius: 4, padding: "6px 8px", border: `1px solid ${C.accent}50`, background: `${C.accent}08` }}>
+                            <div style={{ color: C.accent, fontWeight: 700, fontSize: 8, textTransform: "uppercase" }}>⚡ Trade</div>
+                            <div style={{ fontSize: 9, color: C.text, lineHeight: 1.4, marginTop: 2 }}>{primary.split("|").slice(0,3).join(" | ")}</div>
+                        </div>
+                    )}
+                    {/* Caution */}
+                    {caution && <div style={{ background: `${C.yellow}10`, borderRadius: 4, padding: "5px 8px", fontSize: 8, color: C.dim }}>⚠ {caution}</div>}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── MOMENTUM PANEL ──────────────────────────────────────────────────────────
 function MomentumPanel({ oiData, liveData, aiData, onSearch, searchLoading }) {
     const hasLive = liveData?.strikes?.length > 0;
@@ -1410,7 +1501,7 @@ function MomentumPanel({ oiData, liveData, aiData, onSearch, searchLoading }) {
                         {top_bullish.slice(0, 4).map((s, i) => (
                             <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontSize: 11, fontFamily: "monospace" }}>
                                 <span style={{ color: C.bright }}>{s.strike}</span>
-                                <span style={{ color: C.green, fontWeight: 700 }}>+{s.oi_chg_pct}%</span>
+                                <span style={{ color: C.green, fontWeight: 700 }}>+{s.oi_chg_pct || 0}%</span>
                             </div>
                         ))}
                     </div>
@@ -1421,7 +1512,7 @@ function MomentumPanel({ oiData, liveData, aiData, onSearch, searchLoading }) {
                         {top_bearish.slice(0, 4).map((s, i) => (
                             <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontSize: 11, fontFamily: "monospace" }}>
                                 <span style={{ color: C.bright }}>{s.strike}</span>
-                                <span style={{ color: C.red, fontWeight: 700 }}>+{s.oi_chg_pct}%</span>
+                                <span style={{ color: C.red, fontWeight: 700 }}>+{s.oi_chg_pct || 0}%</span>
                             </div>
                         ))}
                     </div>
@@ -1433,16 +1524,21 @@ function MomentumPanel({ oiData, liveData, aiData, onSearch, searchLoading }) {
         );
     };
 
-    // Live feed section content
+    // Live feed section content — fall back to chain-based momentum if no SSE
     const renderLive = () => {
-        if (!hasLive) return <div style={{ color: C.dim, fontSize: 11 }}>Start agents for live market feed</div>;
-        const { pc_ratio, top_bullish, top_bearish, expected_move } = liveData;
-        const em = expected_move;
+        const fallbackData = oiData; // Use chain-based momentum as fallback
+        if (!hasLive && !fallbackData) return <div style={{ color: C.dim, fontSize: 11 }}>Load option chain to see live data</div>;
+        // Use liveData from SSE if available, fall back to chain-based oiData
+        const data = hasLive ? liveData : fallbackData;
+        const pc = data?.pc_ratio || '—';
+        const bullish = data?.top_bullish || [];
+        const bearish = data?.top_bearish || [];
+        const em = data?.expected_move;
         return (
             <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span style={{ color: C.dim, fontSize: 10 }}>Live PCR: <b style={{ color: C.accent }}>{pc_ratio}</b></span>
-                    <Tag color={C.accent}>REAL-TIME</Tag>
+                    <span style={{ color: C.dim, fontSize: 10 }}>OI PCR: <b style={{ color: C.accent }}>{pc}</b></span>
+                    <Tag color={hasLive ? C.accent : C.yellow}>{hasLive ? 'LIVE' : 'FROM CHAIN'}</Tag>
                 </div>
                 {em && em["1h"] != null && (
                     <div style={{ fontSize: 10, color: C.dim, marginBottom: 8 }}>
@@ -1450,58 +1546,31 @@ function MomentumPanel({ oiData, liveData, aiData, onSearch, searchLoading }) {
                         <span style={{ color: C.accent, fontFamily: "monospace" }}>1d ±₹{em["1d"]}</span>
                     </div>
                 )}
-                {top_bullish?.slice(0, 3).map((s, i) => (
+                {bullish.slice(0, 3).map((s, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontSize: 11, fontFamily: "monospace" }}>
-                        <span style={{ color: C.green }}>{s.strike}⚡</span>
-                        <span style={{ color: C.green, fontWeight: 700 }}>+{s.oi_chg_pct}%</span>
+                        <span style={{ color: C.green }}>{s.strike}▲</span>
+                        <span style={{ color: C.green, fontWeight: 700 }}>+{s.oi_chg_pct || 0}%</span>
                     </div>
                 ))}
-                {top_bearish?.slice(0, 3).map((s, i) => (
+                {bearish.slice(0, 3).map((s, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontSize: 11, fontFamily: "monospace" }}>
-                        <span style={{ color: C.red }}>{s.strike}⚡</span>
-                        <span style={{ color: C.red, fontWeight: 700 }}>+{s.oi_chg_pct}%</span>
+                        <span style={{ color: C.red }}>{s.strike}▼</span>
+                        <span style={{ color: C.red, fontWeight: 700 }}>+{s.oi_chg_pct || 0}%</span>
                     </div>
                 ))}
-                {!top_bullish?.length && !top_bearish?.length && (
-                    <div style={{ color: C.dim, textAlign: "center", padding: 12, fontSize: 11 }}>Awaiting live signals...</div>
+                {!bullish.length && !bearish.length && (
+                    <div style={{ color: C.dim, textAlign: "center", padding: 12, fontSize: 11 }}>Loading OI data from chain...</div>
                 )}
             </>
         );
     };
 
-    // Search input state
-    const [searchInput, setSearchInput] = useState("");
-
-    // AI analysis section content
-    const renderAI = () => {
-        const a = aiData?.analysis;
-        const rendering = a ? (
-            <div style={{ fontSize: 11, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "'JetBrains Mono',monospace", fontSize: 10 }}>{a}</div>
-        ) : (
-            <div style={{ color: C.dim, fontSize: 11 }}>AI analysis ready — use search box below</div>
-        );
-        return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", gap: 4 }}>
-                    <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
-                        placeholder="Search news or ask AI..."
-                        onKeyDown={e => { if (e.key === "Enter" && searchInput.trim()) { onSearch?.(searchInput.trim()); } }}
-                        style={{ flex: 1, background: "#0A1220", border: `1px solid ${C.border}`, borderRadius: 4, color: C.bright, padding: "5px 8px", fontSize: 11, outline: "none" }} />
-                    <button onClick={() => { if (searchInput.trim()) { onSearch?.(searchInput.trim()); } }}
-                        disabled={searchLoading || !searchInput.trim()}
-                        style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}50`, borderRadius: 4, color: C.accent, padding: "5px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
-                        {searchLoading ? "..." : "→"}
-                    </button>
-                </div>
-                {rendering}
-            </div>
-        );
-    };
+    const renderAI = () => null;
 
     return (
         <div style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
+            gridTemplateColumns: "1fr 1fr",
             gap: 12,
             background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16
         }}>
@@ -1511,14 +1580,9 @@ function MomentumPanel({ oiData, liveData, aiData, onSearch, searchLoading }) {
                 {renderOI()}
             </div>
             {/* Column 2: Live Feed */}
-            <div style={{ borderRight: `1px solid ${C.border}44`, paddingRight: 12 }}>
+            <div>
                 <div style={{ color: C.bright, fontWeight: 600, fontSize: 12, marginBottom: 10 }}>⚡ Live Feed</div>
                 {renderLive()}
-            </div>
-            {/* Column 3: AI Analysis */}
-            <div>
-                <div style={{ color: C.bright, fontWeight: 600, fontSize: 12, marginBottom: 10 }}>🤖 AI Analysis</div>
-                {renderAI()}
             </div>
         </div>
     );
@@ -2104,42 +2168,34 @@ function Dashboard({ session, onLogout }) {
         const pc_ratio = totalCeOi > 0 ? (totalPeOi / totalCeOi) : 0;
         const concentration = pc_ratio > 1.3 ? "PUT_HEAVY" : pc_ratio < 0.7 ? "CALL_HEAVY" : "NEUTRAL";
 
-        // Map CE strikes with correct side (API returns ltpchg as %, no prev_oi available)
-        const ceStrikes = ce.map(s => ({
-            strike: (s.strike || s.sp) / 100,
-            side: "CE",
+        // Chain has prev_oi field — compute real OI change
+        const mapStrike = (s, side) => ({
+            strike: (s.strike || s.sp || 0) / 100,
+            side,
             oi: s.oi || 0,
-            oi_chg: s.oi_chg || 0, // No prev_oi in API, show raw or 0
+            prev_oi: s.prev_oi || 0,
+            oi_chg: (s.oi || 0) - (s.prev_oi || 0),
+            oi_chg_pct: s.prev_oi > 0 ? Math.round(((s.oi - s.prev_oi) / s.prev_oi) * 1000) / 10 : 0,
             volume: s.volume || 0,
             iv: s.iv || 0,
             delta: s.delta || 0,
-            ltp: s.ltp || 0,
-            ltp_chg_pct: s.ltpchg || 0, // This is already % from API
-        })).filter(s => s.strike);
-
-        // Map PE strikes with correct side
-        const peStrikes = pe.map(s => ({
-            strike: (s.strike || s.sp) / 100,
-            side: "PE",
-            oi: s.oi || 0,
-            oi_chg: s.oi_chg || 0,
-            volume: s.volume || 0,
-            iv: s.iv || 0,
-            delta: s.delta || 0,
-            ltp: s.ltp || 0,
+            ltp: (s.ltp || 0) / 100,
             ltp_chg_pct: s.ltpchg || 0,
-        })).filter(s => s.strike);
+        });
 
-        const strikes = [...ceStrikes, ...peStrikes].filter(s => s.strike);
-        const sorted = [...strikes].sort((a, b) => b.oi - a.oi); // Sort by total OI descending
+        const ceStrikes = ce.map(s => mapStrike(s, "CE")).filter(s => s.strike > 0);
+        const peStrikes = pe.map(s => mapStrike(s, "PE")).filter(s => s.strike > 0);
+        const strikes = [...ceStrikes, ...peStrikes];
+        const sorted = [...strikes].sort((a, b) => b.oi - a.oi);
+
         return {
             concentration,
             pc_ratio: Math.round(pc_ratio * 100) / 100,
-            top_bullish: ceStrikes.filter(s => s.oi_chg > 0).slice(0, 5),
-            top_bearish: peStrikes.filter(s => s.oi_chg > 0).slice(0, 5),
-            buildup: sorted, // Pass ALL strikes (API doesn't have prev_oi for filtering)
-            unwind: [], // Empty since we can't distinguish buildup vs unwind without prev_oi
-            strikes: strikes,
+            top_bullish: ceStrikes.filter(s => s.oi_chg > 0).sort((a, b) => b.oi_chg_pct - a.oi_chg_pct).slice(0, 5),
+            top_bearish: peStrikes.filter(s => s.oi_chg > 0).sort((a, b) => b.oi_chg_pct - a.oi_chg_pct).slice(0, 5),
+            buildup: sorted,
+            unwind: ceStrikes.filter(s => s.oi_chg < 0).concat(peStrikes.filter(s => s.oi_chg < 0)).sort((a, b) => a.oi_chg_pct - b.oi_chg_pct),
+            strikes,
             expected_move: null,
         };
     })();
@@ -2313,6 +2369,33 @@ function Dashboard({ session, onLogout }) {
                             onSelectOption={(opt, inst) => { setSelOption({ ...opt, instrument: inst }); setActiveInstrument(inst); setTradeLimitPrice((opt.ltp / 100).toFixed(2)); }}
                             onChainUpdate={(chain, inst) => setChainData({ chain, instrument: inst })} />
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            {/* AI Analysis panel — always visible as search bar, results expand */}
+                            <div style={{ background: C.panel, border: `1px solid ${aiAnalysis?.analysis ? C.accent+'60' : C.border}`, borderRadius: 10, padding: 16 }}>
+                                <AIInlinePanel
+                                    aiData={aiAnalysis}
+                                    searchLoading={aiLoading}
+                                    onSearch={async (q) => {
+                                        if (!chainData?.chain) return;
+                                        setAiLoading(true);
+                                        try {
+                                            const ce = chainData.chain.ce?.map(s => ({ strike: s.sp || s.strike, oi: s.oi, prev_oi: s.prev_oi, iv: s.iv, delta: s.delta })) || [];
+                                            const pe = chainData.chain.pe?.map(s => ({ strike: s.sp || s.strike, oi: s.oi, prev_oi: s.prev_oi, iv: s.iv, delta: s.delta })) || [];
+                                            const r = await fetch(`${API_BASE}/ai/momentum`, {
+                                                method: "POST", headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({
+                                                    instrument: activeInstrument,
+                                                    spot: (sse.marketState?.[activeInstrument]?.ltp || (chainData.chain.cp / 100)) * 100,
+                                                    atm: chainData.chain.atm || 0,
+                                                    prev_close: chainData.chain.cp || 0,
+                                                    expiry: chainData.chain.expiry || '',
+                                                    ce, pe, query: q,
+                                                }),
+                                            });
+                                            setAiAnalysis(await r.json());
+                                        } catch (e) { setAiAnalysis({ analysis: `Error: ${e.message}` }); }
+                                        finally { setAiLoading(false); }
+                                    }} />
+                            </div>
                             {selOption && (
                                 <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20 }}>
                                     <div style={{ color: C.dim, fontSize: 10, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Order Ticket</div>
@@ -2429,8 +2512,10 @@ function Dashboard({ session, onLogout }) {
                                         headers: { "Content-Type": "application/json" },
                                         body: JSON.stringify({
                                             instrument: activeInstrument,
-                                            spot: liveSpot ? (liveSpot * 100) : (chainData.chain.cp || 0),
+                                            spot: (sse.marketState?.[activeInstrument]?.ltp || (chainData.chain.cp / 100)) * 100,
                                             atm: chainData.chain.atm || 0,
+                                            prev_close: chainData.chain.cp || 0,
+                                            expiry: chainData.chain.expiry || '',
                                             ce, pe, query: q,
                                         }),
                                     });
@@ -2441,7 +2526,7 @@ function Dashboard({ session, onLogout }) {
                             }} />
                     </div>
                 </>}
-
+                {/* AI Analysis panel — shown inline when data exists */}
                 {activeTab === "optionchain" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: 800 }}>
                         <div style={{ minHeight: 400, flex: 1 }}>
