@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "growwmcp": {
+            "command": "npx",
+            "args": [
+              "mcp-remote@0.1.18",
+                "https://mcp.groww.in/mcp",
+                "52155"
+            ]
+        }
+    }
+}
