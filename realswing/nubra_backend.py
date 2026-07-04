@@ -6,6 +6,9 @@ Nubra Auth Flow (corrected per official docs):
   Step 4: POST /verifypin     Authorization:Bearer auth_token + x-device-id + {pin} → session_token
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -577,24 +580,24 @@ async def ai_momentum_analysis(req: MomentumRequest):
     if req.query:
         web_context = f"\n\nUSER QUERY / CONTEXT: {req.query}\n\nConsider this information in your analysis and list any key events, dates, and levels mentioned."
 
-    prompt = f"""You are an expert Indian F&O momentum analyst. Analyse this {req.instrument} option chain.{web_context}
+    prompt = f"""Analyse this {req.instrument} option chain data for Indian F&O trading. Be direct and specific.{web_context}
 
 Spot: ₹{req.spot}
 ATM: ₹{req.atm}
 
-CE STRIKES (strike, OI, OI chg, IV, delta):
+CE strikes (strike, OI, OI change, IV, delta):
 {chr(10).join(f"{s.get('strike',0)/100:.0f} OI={s.get('oi',0):,} Chg={s.get('oi',0)-(s.get('prev_oi',0) or 0):+} IV={s.get('iv',0)}% Delta={s.get('delta',0)}" for s in ce_sorted)}
 
-PE STRIKES (strike, OI, OI chg, IV, delta):
+PE strikes (strike, OI, OI change, IV, delta):
 {chr(10).join(f"{s.get('strike',0)/100:.0f} OI={s.get('oi',0):,} Chg={s.get('oi',0)-(s.get('prev_oi',0) or 0):+} IV={s.get('iv',0)}% Delta={s.get('delta',0)}" for s in pe_sorted)}
 
-Respond in this exact format (no markdown):
-MOMENTUM: [BULLISH|BEARISH|SIDEWAYS]
-CONFIDENCE: [HIGH|MEDIUM|LOW]
-KEY_LEVELS: [key support/resistance with price levels]
-KEY_EVENTS: [list any upcoming events/dates that could affect price]
-ANALYSIS: [2-3 sentence explanation integrating option chain data]
-TRADE_IDEA: [1 sentence actionable idea]"""
+Use this format:
+MOMENTUM: BULLISH/BEARISH/SIDEWAYS
+CONFIDENCE: HIGH/MEDIUM/LOW
+KEY_LEVELS: key support and resistance levels
+KEY_EVENTS: upcoming events affecting price
+ANALYSIS: 2-3 sentence explanation
+TRADE_IDEA: one actionable idea"""
 
     try:
         ai_client = httpx.AsyncClient(timeout=30.0)
@@ -604,13 +607,28 @@ TRADE_IDEA: [1 sentence actionable idea]"""
             json={
                 "model": NINE_ROUTER_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
                 "temperature": 0.2,
                 "max_tokens": 500,
             },
         )
         await ai_client.aclose()
         r.raise_for_status()
-        content = r.json()["choices"][0]["message"]["content"]
+        # Handle streaming (SSE) responses — 9Router streams by default
+        raw = r.text
+        if raw.startswith("data: "):
+            # SSE streaming format — extract chunks
+            import re
+            chunks = re.findall(r'data: ({.*?})\n\n', raw, re.DOTALL)
+            content = ""
+            for c in chunks:
+                try:
+                    j = json.loads(c)
+                    delta = j.get("choices", [{}])[0].get("delta", {})
+                    content += delta.get("content", "")
+                except: pass
+        else:
+            content = r.json()["choices"][0]["message"]["content"]
         return {"analysis": content.strip()}
     except Exception as e:
         return {"analysis": f"AI unavailable: {type(e).__name__}"}
